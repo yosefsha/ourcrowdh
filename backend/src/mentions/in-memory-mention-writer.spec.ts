@@ -103,8 +103,8 @@ describe('InMemoryMentionWriter', () => {
     });
   });
 
-  describe('findNewMentions', () => {
-    it('returns only relevant, classified Mentions first seen in the given run, published since the cutoff', async () => {
+  describe('findUnalerted / markAlerted', () => {
+    it('returns only relevant, never-alerted Mentions published since the cutoff', async () => {
       const mentionWriter = writer();
       await mentionWriter.recordDiscovered('run-1', company.id, [article]);
       const [pending] = await mentionWriter.findPending();
@@ -116,10 +116,11 @@ describe('InMemoryMentionWriter', () => {
         model: 'fake-model',
       });
 
-      const result = await mentionWriter.findNewMentions('run-1', new Date('2025-12-31T00:00:00Z'));
+      const result = await mentionWriter.findUnalerted(new Date('2025-12-31T00:00:00Z'));
 
       expect(result).toEqual([
         {
+          mentionId: pending.id,
           companyName: company.name,
           title: article.title,
           url: article.url,
@@ -140,24 +141,16 @@ describe('InMemoryMentionWriter', () => {
         model: 'fake-model',
       });
 
-      const result = await mentionWriter.findNewMentions('run-1', new Date('2025-12-31T00:00:00Z'));
+      const result = await mentionWriter.findUnalerted(new Date('2025-12-31T00:00:00Z'));
 
       expect(result).toEqual([]);
     });
 
-    it('excludes a Mention first seen in a different run', async () => {
+    it('excludes a Mention still pending (never classified)', async () => {
       const mentionWriter = writer();
       await mentionWriter.recordDiscovered('run-1', company.id, [article]);
-      const [pending] = await mentionWriter.findPending();
-      await mentionWriter.saveClassification(pending.id, {
-        relevant: true,
-        sentiment: 'neutral',
-        confidence: 0.7,
-        rationale: 'About Acme',
-        model: 'fake-model',
-      });
 
-      const result = await mentionWriter.findNewMentions('run-2', new Date('2025-12-31T00:00:00Z'));
+      const result = await mentionWriter.findUnalerted(new Date('2025-12-31T00:00:00Z'));
 
       expect(result).toEqual([]);
     });
@@ -174,9 +167,51 @@ describe('InMemoryMentionWriter', () => {
         model: 'fake-model',
       });
 
-      const result = await mentionWriter.findNewMentions('run-1', new Date('2026-01-02T00:00:00Z'));
+      const result = await mentionWriter.findUnalerted(new Date('2026-01-02T00:00:00Z'));
 
       expect(result).toEqual([]);
+    });
+
+    it('markAlerted removes a Mention from findUnalerted — never alerted twice', async () => {
+      const mentionWriter = writer();
+      await mentionWriter.recordDiscovered('run-1', company.id, [article]);
+      const [pending] = await mentionWriter.findPending();
+      await mentionWriter.saveClassification(pending.id, {
+        relevant: true,
+        sentiment: 'neutral',
+        confidence: 0.7,
+        rationale: 'About Acme',
+        model: 'fake-model',
+      });
+
+      await mentionWriter.markAlerted('run-1', [pending.id]);
+
+      expect(await mentionWriter.findUnalerted(new Date('2025-12-31T00:00:00Z'))).toEqual([]);
+    });
+
+    it('markAlerted on an unknown id throws', async () => {
+      const mentionWriter = writer();
+
+      await expect(mentionWriter.markAlerted('run-1', ['does-not-exist'])).rejects.toThrow();
+    });
+
+    it('a Mention classified as failed, then reclassified as relevant in a later run, is still unalerted', async () => {
+      const mentionWriter = writer();
+      await mentionWriter.recordDiscovered('run-1', company.id, [article]);
+      const [pending] = await mentionWriter.findPending();
+      await mentionWriter.markFailed(pending.id, 'invalid JSON after retries');
+
+      await mentionWriter.saveClassification(pending.id, {
+        relevant: true,
+        sentiment: 'positive',
+        confidence: 0.6,
+        rationale: 'About Acme',
+        model: 'fake-model',
+      });
+
+      const result = await mentionWriter.findUnalerted(new Date('2025-12-31T00:00:00Z'));
+      expect(result).toHaveLength(1);
+      expect(result[0]?.mentionId).toBe(pending.id);
     });
   });
 });

@@ -31,11 +31,23 @@ export type MentionClassificationStatus = 'pending' | 'classified' | 'failed';
  * row with `relevant IS NULL` and a non-null `sentiment` through.
  * `COALESCE` forces the left side to a real boolean so `relevant IS NULL`
  * is treated the same as `relevant = false`.
+ *
+ * `alertedRunId` and its partial index are added by the Run pipeline issue
+ * (#9, `docs/PLAN.md#data-model-initial-migration`) in their own migration,
+ * not the initial schema: a New Mention is one that is relevant and has
+ * never been alerted (`alertedRunId IS NULL`), not one "first seen in this
+ * Run" — see `mention-writer.ts`. The partial index is on `articleId`
+ * (joined to `articles` for the `ALERT_WINDOW_HOURS` cutoff), filtered to
+ * the unalerted set, since `alertedRunId` itself is always `NULL` within
+ * that set and so cannot usefully be the indexed column.
  */
 @Entity({ name: 'mentions' })
 @Unique(['articleId', 'companyId'])
 @Check(`(classification_status = 'classified') = (relevant IS NOT NULL)`)
 @Check(`(COALESCE(relevant, false) = (sentiment IS NOT NULL))`)
+@Index('IDX_mentions_unalerted_article', ['articleId'], {
+  where: 'relevant AND alerted_run_id IS NULL',
+})
 export class MentionEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -94,4 +106,16 @@ export class MentionEntity {
 
   @Column({ name: 'classified_at', type: 'timestamptz', nullable: true })
   classifiedAt!: Date | null;
+
+  /**
+   * The Run that alerted this Mention, or `null` if it is still unalerted
+   * (`MentionWriter.markAlerted`, `docs/PLAN.md#run-pipeline`). Set only
+   * after `Notifier.notify` has resolved for that Run.
+   */
+  @Column({ name: 'alerted_run_id', type: 'uuid', nullable: true })
+  alertedRunId!: string | null;
+
+  @ManyToOne(() => RunEntity)
+  @JoinColumn({ name: 'alerted_run_id' })
+  alertedRun!: RunEntity | null;
 }
