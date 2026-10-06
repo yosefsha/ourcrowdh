@@ -6,6 +6,10 @@ Tracks news coverage of OurCrowd's portfolio and fund companies, classifies the 
 
 ### Companies
 
+**Company List**:
+OurCrowd's list of portfolio and fund companies — the source of truth for which companies are tracked.
+_Avoid_: Seed file, portfolio list
+
 **Tracked Company**:
 A company on the OurCrowd company list whose press coverage is monitored. Portfolio and fund companies are not distinguished; the list carries no such flag.
 _Avoid_: Portfolio company, fund company, startup
@@ -61,3 +65,11 @@ _Avoid_: Fresh mention, delta
 **Alert**:
 The notification a Run sends listing its New Mentions.
 _Avoid_: Digest, notification, report
+
+## Relationships
+
+- An **Article** can concern several **Tracked Companies**; each pairing is exactly one **Mention**.
+- Each **Mention** is first discovered by exactly one **Run**.
+- Each **Run** sends exactly one **Alert**, possibly empty.
+
+How these are stored and move through a Run: `docs/PLAN.md#entities-and-flow`.
