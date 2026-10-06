@@ -8,7 +8,12 @@ import { CliModule } from './cli.module.js';
  */
 async function bootstrap(): Promise<void> {
   await CommandFactory.run(CliModule, {
-    logger: ['warn', 'error'],
+    // Includes 'log' (not just 'warn'/'error') so a command that completes
+    // successfully — e.g. `cli seed` — still prints a visible confirmation
+    // line. Without it, compose's `migrate` service would show the
+    // migration output and then silently exit, with no sign seeding even
+    // ran.
+    logger: ['log', 'warn', 'error'],
     // `nest-commander`'s own default `serviceErrorHandler` only writes the
     // error to stderr and lets `CommandRunnerService#run` resolve — a
     // command that threw (e.g. `seed` on a missing `COMPANIES_FILE`) would

@@ -28,6 +28,10 @@ export class InMemoryCompanyRepository implements CompanyRepository {
   }
 
   async findAll(): Promise<readonly TrackedCompany[]> {
-    return Promise.resolve(Array.from(this.bySlug.values()));
+    // Ordered by `name`, matching `PostgresCompanyRepository` — the port
+    // contract promises callers the same order from every implementation.
+    const companies = Array.from(this.bySlug.values());
+    companies.sort((a, b) => a.name.localeCompare(b.name));
+    return Promise.resolve(companies);
   }
 }
