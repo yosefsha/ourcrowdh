@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { jest } from '@jest/globals';
 import { DateWindow, FetchedArticle } from '../news-source.js';
 import { fetchWithBisection, FetchWindowFn } from './window-bisector.js';
@@ -51,7 +52,8 @@ describe('fetchWithBisection', () => {
     expect(firstHalfWindow?.to).toEqual(secondHalfWindow?.from);
   });
 
-  it('stops bisecting once the window has reached one day, even if still at the cap', async () => {
+  it('stops bisecting once the window has reached one day, even if still at the cap, and logs the truncation', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const window: DateWindow = {
       from: new Date('2026-01-01T00:00:00Z'),
       to: new Date('2026-01-02T00:00:00Z'),
@@ -64,6 +66,9 @@ describe('fetchWithBisection', () => {
 
     expect(fetchWindow).toHaveBeenCalledTimes(1);
     expect(result).toHaveLength(100);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0]).toContain('truncated');
+    warnSpy.mockRestore();
   });
 
   it('de-duplicates by url across the two halves', async () => {
