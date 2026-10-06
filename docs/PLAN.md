@@ -56,7 +56,7 @@ Terms are defined in `CONTEXT.md`. Four entities are stored; everything else is 
 |---|---|---|---|
 | Tracked Company | `companies` | `cli seed` (upsert on `slug`) | `cli seed` when the Company List changes |
 | Article | `articles` | Run, collect step (upsert on `url`) | — |
-| Mention | `mentions` | Run, collect step — `pending` (upsert on article + company) | Run, classify step — `classified` or `failed` (retried next Run) |
+| Mention | `mentions` | Run, collect step — `pending` (upsert on article + company) | Run, classify step — `classified` or `failed` (retried next Run); Run, alert step — `alerted_run_id` set |
 | Run | `runs` | Run start — `running` | Run end — `succeeded` / `failed` with counts |
 
 | Derived | From |
@@ -64,7 +64,7 @@ Terms are defined in `CONTEXT.md`. Four entities are stored; everything else is 
 | Relevant Mention | `mentions.relevant = true` (implies `classified`) |
 | Mention Status | newest `articles.published_at` over a company's Relevant Mentions, banded per the HTTP API |
 | Quarter counts | Relevant Mentions published in the trailing 90 days, per Sentiment |
-| New Mentions / Alert | Relevant Mentions with `first_seen_run_id` = this Run and published within `ALERT_WINDOW_HOURS` |
+| New Mentions / Alert | Relevant Mentions with `alerted_run_id IS NULL`, published within `ALERT_WINDOW_HOURS`; marked with this Run's id only after `notify` succeeds |
 
 ```
  Company List ──cli seed──▶ Tracked Company
@@ -96,8 +96,12 @@ cli run | POST /api/runs | cron
        mentionWriter.recordDiscovered(...)                (idempotent on article URL + company)
   4. for each pending Mention: classifier.classify(...) → mentionWriter.saveClassification(...)
        item failure (bad JSON after retries) → classification failed, counted, retried next Run
-  5. newMentions = relevant Mentions first seen in this Run and published within ALERT_WINDOW_HOURS
+  5. newMentions = relevant Mentions never alerted (alerted_run_id IS NULL) and published within ALERT_WINDOW_HOURS
      notifier.notify(alert)  — always, an empty Alert prints "no new mentions"
+     mentionWriter.markAlerted(runId, ids) — only after notify succeeds, so a failed Alert is retried next Run
+     delivery is at-least-once: if notify succeeds but markAlerted fails, the Run fails and the next Run repeats those Mentions
+     (keyed on "never alerted", not "first seen this Run": a Mention whose classification failed or was
+      interrupted is alerted by whichever later Run classifies it, if it is still within the window)
   6. finish Run with counts; release lock
 ```
 
@@ -114,9 +118,11 @@ mentions    id uuid pk · article_id fk · company_id fk · unique(article_id, c
             · first_seen_run_id fk runs · classification_status enum(pending,classified,failed)
             · relevant bool null · sentiment enum(positive,negative,neutral) null
             · confidence real null · rationale text null · model text null · classified_at null
+            · alerted_run_id fk runs null   (added by the Run pipeline issue, #9, in its own migration)
             CHECK classified  ⇔ relevant IS NOT NULL
             CHECK COALESCE(relevant, false) = (sentiment IS NOT NULL)   -- a NULL CHECK result passes in Postgres, hence COALESCE
             index (company_id, published_at via article) for status/quarter queries
+            partial index on (article_id) WHERE relevant AND alerted_run_id IS NULL   -- the unalerted set, joined to articles for the window
 ```
 
 ## Ports
@@ -164,7 +170,7 @@ export interface MentionClassifier {
 }
 
 // alerts/notifier.ts                         token NOTIFIER
-export interface NewMention { readonly companyName: string; readonly title: string;
+export interface NewMention { readonly mentionId: string; readonly companyName: string; readonly title: string;
   readonly url: string; readonly outlet: string; readonly publishedAt: Date;
   readonly sentiment: Sentiment; }
 export interface Alert { readonly runId: string; readonly generatedAt: Date;
@@ -179,7 +185,8 @@ export interface MentionWriter {
   findPending(): Promise<readonly PendingMention[]>;    // pending + previously failed
   saveClassification(mentionId: string, result: Classification): Promise<void>;
   markFailed(mentionId: string, reason: string): Promise<void>;
-  findNewMentions(runId: string, publishedSince: Date): Promise<readonly NewMention[]>;
+  findUnalerted(publishedSince: Date): Promise<readonly NewMention[]>; // relevant, never alerted
+  markAlerted(runId: string, mentionIds: readonly string[]): Promise<void>;
 }
 
 // runs/run.repository.ts                     token RUN_REPOSITORY

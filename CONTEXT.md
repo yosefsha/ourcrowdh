@@ -59,7 +59,7 @@ One execution of collecting Articles, classifying new Mentions and sending the A
 _Avoid_: Job, sync, crawl
 
 **New Mention**:
-A Relevant Mention first discovered in the current Run and published recently enough to be news.
+A Relevant Mention that has not yet appeared in any Alert and was published recently enough to be news.
 _Avoid_: Fresh mention, delta
 
 **Alert**:
@@ -70,6 +70,6 @@ _Avoid_: Digest, notification, report
 
 - An **Article** can concern several **Tracked Companies**; each pairing is exactly one **Mention**.
 - Each **Mention** is first discovered by exactly one **Run**.
-- Each **Run** sends exactly one **Alert**, possibly empty.
+- Each **Run** sends exactly one **Alert**, possibly empty, and a **Mention** is a **New Mention** in only one Run's Alert unless recording that Alert fails.
 
 How these are stored and move through a Run: `docs/PLAN.md#entities-and-flow`.
