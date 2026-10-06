@@ -49,4 +49,18 @@ describe('InMemoryCompanyRepository', () => {
 
     await expect(repository.findAll()).resolves.toEqual([]);
   });
+
+  it('findAll orders by name — the port contract every implementation must honor', async () => {
+    const repository = new InMemoryCompanyRepository();
+
+    await repository.upsertAll([
+      { slug: 'stripe', name: 'Stripe', formerNames: [], disambiguator: null },
+      { slug: 'anthropic', name: 'Anthropic', formerNames: [], disambiguator: null },
+      { slug: 'lambda', name: 'Lambda', formerNames: [], disambiguator: 'lambda.ai' },
+    ]);
+
+    const companies = await repository.findAll();
+
+    expect(companies.map((company) => company.name)).toEqual(['Anthropic', 'Lambda', 'Stripe']);
+  });
 });

@@ -58,6 +58,10 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY --from=backend-build /build/backend/dist ./dist
 COPY --from=frontend-build /build/frontend/dist ./public
 
+# The company list `cli seed` reads at runtime — COMPANIES_FILE defaults to
+# /app/seed/companies.txt (docs/PLAN.md#configuration), resolved from WORKDIR.
+COPY backend/seed ./seed
+
 # /app/data holds exported data. Writable by the unprivileged user when used
 # as-is or with a named volume; a bind mount replaces it with the host
 # directory and its ownership (see the "Data directory" note in

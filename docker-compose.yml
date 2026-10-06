@@ -56,9 +56,7 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql://app:app@postgres:5432/app
-    # Seeding (`node dist/cli.js seed`) is appended here once the seed command
-    # exists: "npm run migration:run && node dist/cli.js seed".
-    command: ["sh", "-c", "npm run migration:run"]
+    command: ["sh", "-c", "npm run migration:run && node dist/cli.js seed"]
     depends_on:
       postgres:
         condition: service_healthy

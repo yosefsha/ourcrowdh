@@ -28,6 +28,13 @@ export class InMemoryCompanyRepository implements CompanyRepository {
   }
 
   async findAll(): Promise<readonly TrackedCompany[]> {
-    return Promise.resolve(Array.from(this.bySlug.values()));
+    // Ordered by `name`, matching `PostgresCompanyRepository`'s
+    // `COLLATE "C"` — a plain `<`/`>` code-unit comparison, not
+    // `localeCompare`, which sorts case-insensitively under most locales
+    // and would disagree with Postgres's byte-ordered "C" collation for
+    // mixed-case names.
+    const companies = Array.from(this.bySlug.values());
+    companies.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    return Promise.resolve(companies);
   }
 }
