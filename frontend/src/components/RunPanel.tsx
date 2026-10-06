@@ -29,7 +29,12 @@ export function RunPanel() {
       return;
     }
     const intervalId = setInterval(() => {
+      // Invalidate companies on every poll too, not just runs — a Run that
+      // just finished has already written its new Mentions, so this is the
+      // tick that catches the company table and Quarter totals up without a
+      // manual reload.
       void queryClient.invalidateQueries({ queryKey: queryKeys.runs.all() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.companies.all() });
     }, POLL_INTERVAL_MS);
     return () => clearInterval(intervalId);
   }, [isRunning, queryClient]);
@@ -59,7 +64,16 @@ export function RunPanel() {
         <h2 style={{ margin: 0, fontSize: '1rem' }}>Run status</h2>
         <button
           type="button"
-          onClick={() => startRun.mutate()}
+          onClick={() =>
+            startRun.mutate(undefined, {
+              // A 409 means another client already holds the Run lock — refetch
+              // runs so the stats and the "Run now" disabled state catch up to
+              // that in-progress Run instead of staying on what we had before.
+              onError: () => {
+                void queryClient.invalidateQueries({ queryKey: queryKeys.runs.all() });
+              },
+            })
+          }
           disabled={startRunDisabled}
           style={{
             padding: '0.45rem 0.9rem',
@@ -87,24 +101,28 @@ export function RunPanel() {
       {runsQuery.isSuccess && latestRun === null && <p style={{ margin: 0 }}>No runs yet.</p>}
 
       {runsQuery.isSuccess && latestRun !== null && (
-        <dl
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(7rem, 1fr))',
-            gap: '0.5rem',
-            margin: 0,
-          }}
-        >
-          {stats.map((stat) => (
-            <div key={stat.label}>
-              <dt style={{ fontSize: '0.72rem', color: '#868e96', textTransform: 'uppercase' }}>{stat.label}</dt>
-              <dd style={{ margin: 0, fontWeight: 600 }}>{stat.value}</dd>
-            </div>
-          ))}
+        <>
+          <dl
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(7rem, 1fr))',
+              gap: '0.5rem',
+              margin: 0,
+            }}
+          >
+            {stats.map((stat) => (
+              <div key={stat.label}>
+                <dt style={{ fontSize: '0.72rem', color: '#868e96', textTransform: 'uppercase' }}>{stat.label}</dt>
+                <dd style={{ margin: 0, fontWeight: 600 }}>{stat.value}</dd>
+              </div>
+            ))}
+          </dl>
           {latestRun.status === 'failed' && latestRun.error !== null && (
-            <div style={{ gridColumn: '1 / -1', color: '#c92a2a' }}>{latestRun.error}</div>
+            <p role="alert" style={{ margin: 0, color: '#c92a2a' }}>
+              {latestRun.error}
+            </p>
           )}
-        </dl>
+        </>
       )}
 
       {startRunErrorMessage !== null && (
