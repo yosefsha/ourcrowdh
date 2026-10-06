@@ -9,6 +9,7 @@
 !backend/tsconfig.build.json
 !backend/nest-cli.json
 !backend/src
+!backend/seed
 
 !frontend/package.json
 !frontend/package-lock.json
