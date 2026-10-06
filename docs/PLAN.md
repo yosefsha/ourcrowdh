@@ -48,6 +48,42 @@ Read only through `ConfigService`; validated at boot. `GOOGLE_NEWS_*` belong to 
 | `GOOGLE_NEWS_REQUEST_DELAY_MS` | `1500` | politeness delay between Google News requests |
 | `GOOGLE_NEWS_LOCALE` | `hl=en-US&gl=US&ceid=US:en` | edition queried |
 
+## Entities and flow
+
+Terms are defined in `CONTEXT.md`. Four entities are stored; everything else is derived at read time.
+
+| Entity | Table | Created by | Changed by |
+|---|---|---|---|
+| Tracked Company | `companies` | `cli seed` (upsert on `slug`) | `cli seed` when the Company List changes |
+| Article | `articles` | Run, collect step (upsert on `url`) | — |
+| Mention | `mentions` | Run, collect step — `pending` (upsert on article + company) | Run, classify step — `classified` or `failed` (retried next Run) |
+| Run | `runs` | Run start — `running` | Run end — `succeeded` / `failed` with counts |
+
+| Derived | From |
+|---|---|
+| Relevant Mention | `mentions.relevant = true` (implies `classified`) |
+| Mention Status | newest `articles.published_at` over a company's Relevant Mentions, banded per the HTTP API |
+| Quarter counts | Relevant Mentions published in the trailing 90 days, per Sentiment |
+| New Mentions / Alert | Relevant Mentions with `first_seen_run_id` = this Run and published within `ALERT_WINDOW_HOURS` |
+
+```
+ Company List ──cli seed──▶ Tracked Company
+                                  │
+ Run ─────────────────────────────┤ collect: NewsSource.fetchArticles(company, window)
+                                  ▼
+                              Article ──┬──▶ Mention [pending]
+                     Tracked Company ───┘          │ classify: MentionClassifier.classify
+                                                   ▼
+                                    Mention [classified | failed]
+                                                   │
+          ┌────────────────────────────────────────┼─────────────────────────────┐
+          ▼                                        ▼                             ▼
+   New Mentions → Notifier.notify(Alert)   Dashboard read model          Export read model → data/
+   (end of the Run)                        (Mention Status, Quarter)     (CSV, JSON, summary)
+```
+
+Writes happen only in `cli seed` and the Run. The dashboard and export only read.
+
 ## Run pipeline
 
 ```
