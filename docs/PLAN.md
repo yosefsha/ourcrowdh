@@ -79,7 +79,7 @@ mentions    id uuid pk · article_id fk · company_id fk · unique(article_id, c
             · relevant bool null · sentiment enum(positive,negative,neutral) null
             · confidence real null · rationale text null · model text null · classified_at null
             CHECK classified  ⇔ relevant IS NOT NULL
-            CHECK relevant = true ⇔ sentiment IS NOT NULL
+            CHECK COALESCE(relevant, false) = (sentiment IS NOT NULL)   -- a NULL CHECK result passes in Postgres, hence COALESCE
             index (company_id, published_at via article) for status/quarter queries
 ```
 
@@ -148,6 +148,17 @@ export interface MentionWriter {
 
 // runs/run.repository.ts                     token RUN_REPOSITORY
 export type RunTrigger = 'schedule' | 'manual' | 'cli';
+export type RunStatus = 'running' | 'succeeded' | 'failed';
+export interface RunRecord {                            // the runs row, camelCase
+  readonly id: string; readonly trigger: RunTrigger; readonly status: RunStatus;
+  readonly startedAt: Date; readonly finishedAt: Date | null;
+  readonly articlesFetched: number; readonly mentionsDiscovered: number;
+  readonly mentionsClassified: number; readonly classificationFailures: number;
+  readonly newMentions: number; readonly error: string | null; }
+export interface RunCounts {                            // what finish/fail record
+  readonly articlesFetched: number; readonly mentionsDiscovered: number;
+  readonly mentionsClassified: number; readonly classificationFailures: number;
+  readonly newMentions: number; }
 export interface RunRepository {
   withLock<T>(work: () => Promise<T>): Promise<T>;      // throws RunAlreadyInProgressError
   start(trigger: RunTrigger): Promise<RunRecord>;
