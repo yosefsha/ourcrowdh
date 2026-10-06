@@ -1,0 +1,103 @@
+# Local stack: postgres -> migrate (one-shot) -> app on http://localhost:8000.
+#
+#   docker compose up --build
+#
+# Ollama
+# ------
+# By default the app talks to Ollama running on the host
+# (OLLAMA_URL=http://host.docker.internal:11434). Ollama is needed only when a
+# Run classifies Mentions — the app starts and serves the dashboard without it.
+#
+# To run Ollama in a container instead, enable the `ollama` profile and point
+# the app at it. That one variable is the whole switch:
+#
+#   OLLAMA_URL=http://ollama:11434 docker compose --profile ollama up --build
+#
+# The profile starts `ollama` and a one-shot `ollama-pull` that downloads
+# ${OLLAMA_MODEL:-qwen2.5:7b} into the `ollama` volume once the server is up.
+#
+# Postgres
+# --------
+# Postgres is deliberately not published on the host: the app and `migrate`
+# reach it on the compose network as `postgres:5432`, and leaving the host port
+# free avoids clashing with a host-installed Postgres on 5432. For a shell:
+#
+#   docker compose exec postgres psql -U app -d app
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # Same probe as the CI service container.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  migrate:
+    # Same Dockerfile and context as `app`, so the second build is a cache hit.
+    build: .
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/app
+    # Seeding (`node dist/cli.js seed`) is appended here once the seed command
+    # exists: "npm run migration:run && node dist/cli.js seed".
+    command: ["sh", "-c", "npm run migration:run"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/app
+      SCHEDULER_ENABLED: "true"
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+    ports:
+      - "8000:8000"
+    # Makes host.docker.internal resolve on Linux too (Docker Desktop provides
+    # it already), so the default OLLAMA_URL reaches the host's Ollama.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:0.35.1
+    profiles: [ollama]
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  ollama-pull:
+    image: ollama/ollama:0.35.1
+    profiles: [ollama]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    command: ["pull", "${OLLAMA_MODEL:-qwen2.5:7b}"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  postgres-data:
+  ollama:
