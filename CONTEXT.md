@@ -68,11 +68,8 @@ _Avoid_: Digest, notification, report
 
 ## Relationships
 
-- Every entry on the **Company List** is exactly one **Tracked Company**; a company leaves monitoring only by leaving the list.
-- A **Tracked Company** has zero or more **Former Names** and at most one **Disambiguator**.
-- An **Article** comes from one **News Source** and concerns one or more **Tracked Companies**.
-- A **Mention** joins exactly one **Article** to exactly one **Tracked Company**; the same pair is never two Mentions.
-- A **Mention** is first discovered by exactly one **Run**, and is judged relevant or not exactly once it is classified.
-- **Sentiment** exists only for a **Relevant Mention**; an irrelevant Mention has none.
-- A **Tracked Company**'s **Mention Status** comes from its most recent **Relevant Mention** of any age; its **Quarter** coverage counts only Relevant Mentions inside the **Quarter**.
-- Each **Run** sends exactly one **Alert**, which lists that Run's **New Mentions** — possibly none.
+- An **Article** can concern several **Tracked Companies**; each pairing is exactly one **Mention**.
+- Each **Mention** is first discovered by exactly one **Run**.
+- Each **Run** sends exactly one **Alert**, possibly empty.
+
+How these are stored and move through a Run: `docs/PLAN.md#entities-and-flow`.
