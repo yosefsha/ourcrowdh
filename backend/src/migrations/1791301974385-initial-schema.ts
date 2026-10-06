@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class InitialSchema1791301395403 implements MigrationInterface {
-  name = 'InitialSchema1791301395403';
+export class InitialSchema1791301974385 implements MigrationInterface {
+  name = 'InitialSchema1791301974385';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
@@ -29,7 +29,7 @@ export class InitialSchema1791301395403 implements MigrationInterface {
       `CREATE TYPE "public"."mention_sentiment" AS ENUM('positive', 'negative', 'neutral')`,
     );
     await queryRunner.query(
-      `CREATE TABLE "mentions" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "article_id" uuid NOT NULL, "company_id" uuid NOT NULL, "first_seen_run_id" uuid NOT NULL, "classification_status" "public"."mention_classification_status" NOT NULL DEFAULT 'pending', "relevant" boolean, "sentiment" "public"."mention_sentiment", "confidence" real, "rationale" text, "model" text, "classified_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "UQ_af17b9badbaf4d012bffda1c9df" UNIQUE ("article_id", "company_id"), CONSTRAINT "CHK_a89a2734e3ff2bb5f5b8f21f4f" CHECK ((relevant = true) = (sentiment IS NOT NULL)), CONSTRAINT "CHK_52998de8fe78dc0b9d9f84189c" CHECK ((classification_status = 'classified') = (relevant IS NOT NULL)), CONSTRAINT "PK_2c728c4685beaa7be19e11eae42" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "mentions" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "article_id" uuid NOT NULL, "company_id" uuid NOT NULL, "first_seen_run_id" uuid NOT NULL, "classification_status" "public"."mention_classification_status" NOT NULL DEFAULT 'pending', "relevant" boolean, "sentiment" "public"."mention_sentiment", "confidence" real, "rationale" text, "model" text, "classified_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "UQ_af17b9badbaf4d012bffda1c9df" UNIQUE ("article_id", "company_id"), CONSTRAINT "CHK_8e2ae226f4ba590e70def46f97" CHECK ((COALESCE(relevant, false) = (sentiment IS NOT NULL))), CONSTRAINT "CHK_52998de8fe78dc0b9d9f84189c" CHECK ((classification_status = 'classified') = (relevant IS NOT NULL)), CONSTRAINT "PK_2c728c4685beaa7be19e11eae42" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_b597a8be6d53d7836f176b50b2" ON "mentions" ("article_id") `,

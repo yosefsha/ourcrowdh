@@ -23,11 +23,19 @@ export type MentionClassificationStatus = 'pending' | 'classified' | 'failed';
  * criteria's e2e spec asserts against:
  *   - classified ⇔ relevant IS NOT NULL
  *   - relevant = true ⇔ sentiment IS NOT NULL
+ *
+ * The second constraint is written with `COALESCE(relevant, false)`, not a
+ * bare `relevant = true`: in SQL, `NULL = true` evaluates to `NULL`, and
+ * Postgres treats a `NULL` `CHECK` result as passing (only `false` fails
+ * it) — so a bare `(relevant = true) = (sentiment IS NOT NULL)` would let a
+ * row with `relevant IS NULL` and a non-null `sentiment` through.
+ * `COALESCE` forces the left side to a real boolean so `relevant IS NULL`
+ * is treated the same as `relevant = false`.
  */
 @Entity({ name: 'mentions' })
 @Unique(['articleId', 'companyId'])
 @Check(`(classification_status = 'classified') = (relevant IS NOT NULL)`)
-@Check(`(relevant = true) = (sentiment IS NOT NULL)`)
+@Check(`(COALESCE(relevant, false) = (sentiment IS NOT NULL))`)
 export class MentionEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

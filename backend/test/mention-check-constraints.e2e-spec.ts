@@ -97,6 +97,17 @@ describe('mentions CHECK constraints (e2e)', () => {
     ).rejects.toMatchObject({ code: '23514' });
   });
 
+  it('rejects relevant=null with sentiment set — `relevant = true` in SQL is NULL, not false, when relevant IS NULL', async () => {
+    // Regression case: a bare `(relevant = true) = (sentiment IS NOT NULL)`
+    // check would pass here, since `NULL = true` is `NULL` and Postgres
+    // treats a NULL CHECK result as satisfied. The constraint must use
+    // `COALESCE(relevant, false)` so a null `relevant` is treated the same
+    // as `false`, not as "unknown, so allow it".
+    await expect(
+      insertMention({ classificationStatus: 'failed', relevant: null, sentiment: 'positive' }),
+    ).rejects.toMatchObject({ code: '23514' });
+  });
+
   it('accepts a pending Mention with relevant and sentiment both null', async () => {
     await expect(
       insertMention({ classificationStatus: 'pending', relevant: null, sentiment: null }),
