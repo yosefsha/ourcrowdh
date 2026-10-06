@@ -45,6 +45,15 @@ What CI needs from the backend, beyond the files existing:
 - `npm run lint` must carry `--max-warnings 0`, or the lint gate can never fail — `typescript-eslint`'s recommended preset ships most rules as warnings.
 - `npm run type-check` (`tsc --noEmit -p tsconfig.json`) is its own gate, so a type error is reported as a type error rather than as a build failure.
 
+## ESM
+
+The backend is native ESM on NestJS 12 — see `docs/adr/0001-backend-esm-nestjs-12.md`. Do not convert anything back to CommonJS.
+- Relative imports end in `.js`: `import { OrderService } from './order.service.js';`
+- Use `import.meta.dirname` instead of `__dirname`.
+- Jest runs with `NODE_OPTIONS=--experimental-vm-modules`; the `test` and `test:e2e` scripts already set it.
+- `migration:run` / `migration:generate` load the compiled data source — run `npm run build` first.
+- E2E specs boot the app with `NestFactory.create(AppModule)` (plus the same global pipes as `main.ts`) and swap ports with `overrideProvider` on a module built the same way; `Test.createTestingModule` disables SPA serving.
+
 ## Code Style
 - Type every function signature including the return type. `strict: true` in `tsconfig.json`, and no `any` — use `unknown` and narrow.
 - One class/concern per file. `PascalCase` for classes/types/interfaces, `camelCase` for functions/variables, `kebab-case.<role>.ts` for filenames (`order.service.ts`, `create-order.dto.ts`).
