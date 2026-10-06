@@ -14,19 +14,35 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Nest's error body. `message` is a string for most errors and a string[] for
+ * 400s raised by the global ValidationPipe (one entry per violated constraint).
+ */
 interface ErrorResponseBody {
-  message?: string;
+  message?: unknown;
 }
 
 function isErrorResponseBody(value: unknown): value is ErrorResponseBody {
   return typeof value === 'object' && value !== null;
 }
 
+function toMessage(message: unknown): string | null {
+  if (typeof message === 'string') {
+    return message.length > 0 ? message : null;
+  }
+  if (Array.isArray(message)) {
+    const parts = message.filter((part): part is string => typeof part === 'string' && part.length > 0);
+    return parts.length > 0 ? parts.join('; ') : null;
+  }
+  return null;
+}
+
 async function readErrorMessage(response: Response): Promise<string> {
   try {
     const body: unknown = await response.json();
-    if (isErrorResponseBody(body) && typeof body.message === 'string' && body.message.length > 0) {
-      return body.message;
+    const message = isErrorResponseBody(body) ? toMessage(body.message) : null;
+    if (message !== null) {
+      return message;
     }
   } catch {
     // Response body wasn't JSON (or was empty) — fall back to status text below.

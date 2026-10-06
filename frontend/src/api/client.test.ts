@@ -45,6 +45,35 @@ describe('get', () => {
     expect(error).toMatchObject({ status: 500 });
     expect((error as ApiError).message.length).toBeGreaterThan(0);
   });
+
+  it('joins a ValidationPipe message array into one ApiError message', async () => {
+    server.use(
+      http.get('/test/invalid', () =>
+        HttpResponse.json(
+          { message: ['limit must not be less than 1', 'limit must be an integer number'] },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    const error: unknown = await get('/test/invalid').catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
+      status: 400,
+      message: 'limit must not be less than 1; limit must be an integer number',
+    });
+  });
+
+  it('falls back to a status message when the message array is empty', async () => {
+    server.use(
+      http.get('/test/empty-array', () => HttpResponse.json({ message: [] }, { status: 400 })),
+    );
+
+    const error: unknown = await get('/test/empty-array').catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ status: 400 });
+    expect((error as ApiError).message.length).toBeGreaterThan(0);
+  });
 });
 
 describe('post', () => {
