@@ -60,6 +60,18 @@ describe('useRuns', () => {
 
     expect(result.current.data).toEqual(runsFixture);
   });
+
+  it.each([0, 51, 2.5, Number.NaN])('rejects limit %s outside the API range 1–50', (limit) => {
+    expect(() => renderHook(() => useRuns(limit), { wrapper: createWrapper() })).toThrow(
+      RangeError,
+    );
+  });
+
+  it.each([1, 50])('accepts the boundary limit %s', async (limit) => {
+    const { result } = renderHook(() => useRuns(limit), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  });
 });
 
 describe('useStartRun', () => {

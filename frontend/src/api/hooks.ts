@@ -23,7 +23,20 @@ export function useCompany(slug: string): UseQueryResult<CompanyDetailResponseDt
   });
 }
 
+/** Bounds `GET /api/runs` accepts for `limit` (docs/PLAN.md#http-api). */
+export const RUNS_LIMIT_MIN = 1;
+export const RUNS_LIMIT_MAX = 50;
+
+/**
+ * Lists recent Runs. An out-of-range `limit` is a programming error, so it
+ * throws instead of being clamped — clamping would hide the caller's bug.
+ */
 export function useRuns(limit: number): UseQueryResult<RunsResponseDto, ApiError> {
+  if (!Number.isInteger(limit) || limit < RUNS_LIMIT_MIN || limit > RUNS_LIMIT_MAX) {
+    throw new RangeError(
+      `useRuns: limit must be an integer from ${RUNS_LIMIT_MIN} to ${RUNS_LIMIT_MAX}, got ${limit}`,
+    );
+  }
   return useQuery({
     queryKey: queryKeys.runs.list(limit),
     queryFn: () => get<RunsResponseDto>(`/api/runs?limit=${limit}`),
