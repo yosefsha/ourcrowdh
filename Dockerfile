@@ -17,7 +17,10 @@ RUN npm ci
 COPY frontend/index.html frontend/vite.config.ts frontend/tsconfig.json frontend/tsconfig.app.json frontend/tsconfig.node.json ./
 COPY frontend/public ./public
 COPY frontend/src ./src
-RUN npm run build
+# MSW's service worker serves only `npm run dev:mock`. msw's postinstall
+# writes it into public/ during `npm ci`, so it is removed from the build
+# output rather than from the context: it must not ship in the production SPA.
+RUN npm run build && rm -f dist/mockServiceWorker.js
 
 # ---- backend build -------------------------------------------------------
 # Full devDependencies here: the TypeScript compiler and Nest CLI are not
@@ -55,8 +58,10 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY --from=backend-build /build/backend/dist ./dist
 COPY --from=frontend-build /build/frontend/dist ./public
 
-# /app/data is the bind-mount target for exported data; it must exist and be
-# writable by the unprivileged user before the mount lands on it.
+# /app/data holds exported data. Writable by the unprivileged user when used
+# as-is or with a named volume; a bind mount replaces it with the host
+# directory and its ownership (see the "Data directory" note in
+# docker-compose.yml).
 RUN mkdir -p /app/data && chown node:node /app/data
 
 # `node` is the unprivileged user (uid 1000) shipped with the official image.

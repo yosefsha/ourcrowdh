@@ -23,6 +23,16 @@
 # free avoids clashing with a host-installed Postgres on 5432. For a shell:
 #
 #   docker compose exec postgres psql -U app -d app
+#
+# Data directory
+# --------------
+# ./data is bind-mounted at /app/data, and the app runs as the image's `node`
+# user (uid 1000). On Docker Desktop (macOS/Windows) file ownership is mapped,
+# so nothing is needed. On a Linux host, create the directory yourself before
+# the first `up` — otherwise Docker creates it root-owned and the app cannot
+# write to it — and make it writable by uid 1000:
+#
+#   mkdir -p data && sudo chown 1000:1000 data
 
 services:
   postgres:
