@@ -1,10 +1,15 @@
 import { Module } from '@nestjs/common';
+import { MENTION_CLASSIFIER } from './mention-classifier.js';
+import { OllamaMentionClassifier } from './repositories/ollama-mention-classifier.js';
 
 /**
- * Intentionally empty. `MENTION_CLASSIFIER` (`mention-classifier.js`) has no
- * provider bound yet — the Ollama classifier issue adds
- * `{ provide: MENTION_CLASSIFIER, useClass: OllamaMentionClassifier }` and
- * re-exports the token.
+ * Binds `MENTION_CLASSIFIER` (`mention-classifier.js`) to the Ollama
+ * adapter. Replacing or adding a source — a hosted model, a second local
+ * model — is a change to this provider list, not to anything that consumes
+ * the port.
  */
-@Module({})
+@Module({
+  providers: [{ provide: MENTION_CLASSIFIER, useClass: OllamaMentionClassifier }],
+  exports: [MENTION_CLASSIFIER],
+})
 export class ClassificationModule {}
