@@ -28,5 +28,17 @@ export interface MentionWriter {
   findPending(): Promise<readonly PendingMention[]>;
   saveClassification(mentionId: string, result: Classification): Promise<void>;
   markFailed(mentionId: string, reason: string): Promise<void>;
-  findNewMentions(runId: string, publishedSince: Date): Promise<readonly NewMention[]>;
+  /**
+   * Relevant Mentions never alerted (`alerted_run_id IS NULL`), published
+   * since the cutoff — a New Mention is "never alerted", not "first seen in
+   * this Run" (`CONTEXT.md#monitoring`, `docs/PLAN.md#run-pipeline`).
+   */
+  findUnalerted(publishedSince: Date): Promise<readonly NewMention[]>;
+  /**
+   * Marks the given Mentions alerted by this Run. Called only after
+   * `Notifier.notify` resolves, so a Run that fails after `notify` succeeds
+   * leaves these Mentions unalerted and the next Run re-alerts them —
+   * at-least-once delivery, never zero (`docs/PLAN.md#run-pipeline`).
+   */
+  markAlerted(runId: string, mentionIds: readonly string[]): Promise<void>;
 }

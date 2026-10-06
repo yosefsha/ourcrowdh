@@ -6,6 +6,7 @@ import { Sentiment } from '../classification/mention-classifier.js';
  * that nothing new was found.
  */
 export interface NewMention {
+  readonly mentionId: string;
   readonly companyName: string;
   readonly title: string;
   readonly url: string;

@@ -1,10 +1,18 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ArticleEntity } from './article.entity.js';
+import { MentionEntity } from './mention.entity.js';
+import { MENTION_WRITER } from './mention-writer.js';
+import { PostgresMentionWriter } from './repositories/postgres-mention-writer.js';
 
 /**
- * Intentionally empty. `MENTION_WRITER` (`mention-writer.js`) has no
- * provider bound yet — the Run orchestrator issue adds
- * `{ provide: MENTION_WRITER, useClass: PostgresMentionWriter }` and
- * re-exports the token.
+ * Binds `MENTION_WRITER` (`mention-writer.js`) to the Postgres
+ * implementation and re-exports the token for the Run orchestrator
+ * (`runs/run.service.ts`) to inject.
  */
-@Module({})
+@Module({
+  imports: [TypeOrmModule.forFeature([ArticleEntity, MentionEntity])],
+  providers: [{ provide: MENTION_WRITER, useClass: PostgresMentionWriter }],
+  exports: [MENTION_WRITER],
+})
 export class MentionsModule {}

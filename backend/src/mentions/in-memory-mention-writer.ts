@@ -17,13 +17,14 @@ interface StoredMention {
   relevant: boolean | null;
   sentiment: Sentiment | null;
   failureReason: string | null;
+  alertedRunId: string | null;
 }
 
 /**
  * In-memory fake for `MentionWriter`. `recordDiscovered` is idempotent on
  * article url + company, exactly like the real (Postgres, unique on
  * `(article_id, company_id)`) implementation. Resolving a Mention's
- * `TrackedCompany` for `findPending`/`findNewMentions` needs a company
+ * `TrackedCompany` for `findPending`/`findUnalerted` needs a company
  * lookup the port itself does not carry (`recordDiscovered` only takes a
  * `companyId`) — a test supplies one via the constructor, keyed by id.
  */
@@ -57,6 +58,7 @@ export class InMemoryMentionWriter implements MentionWriter {
         relevant: null,
         sentiment: null,
         failureReason: null,
+        alertedRunId: null,
       });
       created += 1;
     }
@@ -99,16 +101,17 @@ export class InMemoryMentionWriter implements MentionWriter {
     return this.findById(mentionId).failureReason;
   }
 
-  async findNewMentions(runId: string, publishedSince: Date): Promise<readonly NewMention[]> {
-    const newMentions = this.mentions.filter(
+  async findUnalerted(publishedSince: Date): Promise<readonly NewMention[]> {
+    const unalerted = this.mentions.filter(
       (mention) =>
-        mention.firstSeenRunId === runId &&
         mention.classificationStatus === 'classified' &&
         mention.relevant === true &&
+        mention.alertedRunId === null &&
         mention.articlePublishedAt >= publishedSince,
     );
     return Promise.resolve(
-      newMentions.map((mention) => ({
+      unalerted.map((mention) => ({
+        mentionId: mention.id,
         companyName: this.resolveCompany(mention.companyId).name,
         title: mention.articleTitle,
         url: mention.articleUrl,
@@ -120,6 +123,13 @@ export class InMemoryMentionWriter implements MentionWriter {
         sentiment: mention.sentiment!,
       })),
     );
+  }
+
+  async markAlerted(runId: string, mentionIds: readonly string[]): Promise<void> {
+    for (const mentionId of mentionIds) {
+      this.findById(mentionId).alertedRunId = runId;
+    }
+    return Promise.resolve();
   }
 
   private findById(mentionId: string): StoredMention {
