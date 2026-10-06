@@ -74,6 +74,38 @@ describe('RssHttpClient', () => {
     ).rejects.toBeInstanceOf(NewsSourceError);
   });
 
+  it('wraps a body-read failure as NewsSourceError instead of letting it escape', async () => {
+    const response = new Response('<rss></rss>', { status: 200 });
+    jest.spyOn(response, 'text').mockRejectedValue(new TypeError('stream closed'));
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+    const client = new RssHttpClient(0);
+
+    await expect(
+      client.fetchRssFeed('https://news.google.com/rss/search?q=x', 'x'),
+    ).rejects.toBeInstanceOf(NewsSourceError);
+  });
+
+  it('cancels the response body of a retried status before sleeping, instead of leaking the connection', async () => {
+    jest.useFakeTimers();
+    const throttled = new Response('', { status: 429 });
+    if (!throttled.body) {
+      throw new Error('test setup: Response.body was unexpectedly null');
+    }
+    const cancelSpy = jest.spyOn(throttled.body, 'cancel').mockResolvedValue(undefined);
+    const fetchMock = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(throttled)
+      .mockResolvedValueOnce(new Response('<rss>ok</rss>', { status: 200 }));
+    const client = new RssHttpClient(0);
+
+    const promise = client.fetchRssFeed('https://news.google.com/rss/search?q=x', 'x');
+    await jest.runAllTimersAsync();
+    await promise;
+
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('wraps an aborted (timed-out) request as NewsSourceError without leaking it', async () => {
     jest
       .spyOn(globalThis, 'fetch')

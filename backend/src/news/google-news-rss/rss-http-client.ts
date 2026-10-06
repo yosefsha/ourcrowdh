@@ -67,23 +67,37 @@ export class RssHttpClient {
     let response: Response;
     try {
       response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+      if (response.ok) {
+        // Reading the body can itself fail (dropped connection, the same
+        // timeout firing mid-stream) — that must surface as NewsSourceError
+        // too, so it stays inside this try, not after it.
+        return await response.text();
+      }
     } catch (error) {
       throw new NewsSourceError(
         `Google News RSS request failed for query "${query}": ${(error as Error).message}`,
       );
     }
 
-    if (response.ok) {
-      return await response.text();
-    }
-
     if (isRetryableStatus(response.status) && attempt < MAX_ATTEMPTS) {
+      await cancelBody(response);
       await sleep(backoffDelayMs(attempt));
       return this.fetchWithRetry(url, query, attempt + 1);
     }
 
+    await cancelBody(response);
     throw new NewsSourceError(
       `Google News RSS request failed with status ${response.status} for query "${query}"`,
     );
+  }
+}
+
+/** Releases an unread response body so the connection doesn't stay held until GC. */
+async function cancelBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Best-effort cleanup only — a failure here must not mask the
+    // status-driven retry/error decision already made by the caller.
   }
 }
