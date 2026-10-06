@@ -12,7 +12,7 @@ backend/
   tsconfig.build.json     # Excludes tests from the production build
   nest-cli.json
   eslint.config.mjs       # Flat config; `npm run lint` carries --max-warnings 0
-  Dockerfile              # node:22-alpine base, multi-stage
+                          # No Dockerfile here — the image is built from the root Dockerfile
   src/
     main.ts               # bootstrap(): global ValidationPipe, listens on PORT (default 8000)
     app.module.ts         # Root module — imports feature modules and ConfigModule
@@ -39,7 +39,7 @@ Unit specs (`*.spec.ts`) sit next to the file they cover under `src/`; end-to-en
 specs (`*.e2e-spec.ts`) live in `test/`.
 
 What CI needs from the backend, beyond the files existing:
-- `npm ci` must install `pg` and `ioredis` — they are what the readiness check imports before the suite runs.
+- `npm ci` must install `pg` — it is what the readiness check imports before the suite runs. There is no Redis.
 - `npm run migration:run` must apply cleanly to an empty database.
 - **The suite must not skip.** A skipped or `todo` test fails the build; specs that skip themselves when no database is present will trip it, so gate them on something CI satisfies.
 - `npm run lint` must carry `--max-warnings 0`, or the lint gate can never fail — `typescript-eslint`'s recommended preset ships most rules as warnings.
@@ -67,7 +67,7 @@ The backend is native ESM on NestJS 12 — see `docs/adr/0001-backend-esm-nestjs
 ## Configuration
 - Use `@nestjs/config` with `isGlobal: true` and a typed `configuration.ts` factory. Read config through `ConfigService`, never `process.env` outside that factory.
 - Validate the environment at startup with a schema (`validation.ts`); an invalid env must fail the boot, not surface as an undefined at the first request.
-- Provide sensible defaults so `npm run start:dev` works with no env vars set: `PORT=8000`, `DATABASE_URL=postgresql://app:app@localhost:5432/app`, `REDIS_URL=redis://localhost:6379/0`.
+- Provide sensible defaults so `npm run start:dev` works with no env vars set: `PORT=8000`, `DATABASE_URL=postgresql://app:app@localhost:5432/app`. The full list of variables and defaults is in `docs/PLAN.md#configuration`.
 - Secrets come from the environment (Secrets Manager in ECS) — never from a committed `.env`.
 
 ## Data sources go behind a port interface
@@ -81,7 +81,7 @@ return types and its own error types. One implementation per source under
 ## Testing
 - `jest` as the runner, `supertest` for HTTP-level tests.
 - Unit tests construct the service under test directly (`new OrderService(fake)`) — reach for `Test.createTestingModule` only when Nest's DI is what's under test.
-- E2E specs boot the real `AppModule` against the real Postgres and Redis containers, with the same global pipes as `main.ts`, and assert on status codes and body shapes.
+- E2E specs boot the real `AppModule` against the real Postgres container, with the same global pipes as `main.ts`, and assert on status codes and body shapes.
 - Substitute the in-memory fake through `overrideProvider(TOKEN)`; do not mock the driver.
 - Test both success paths and error/edge cases.
 - Run a single test: `npm test -- src/orders/order.service.spec.ts -t "rejects a duplicate"`
@@ -91,8 +91,10 @@ return types and its own error types. One implementation per source under
 - Runtime deps stay out of `devDependencies` — the production image installs with `npm ci --omit=dev`.
 
 ## Container runtime
-- Multi-stage `Dockerfile` on a `node:22-alpine` base: a builder stage runs `npm ci` and `npm run build`, the runtime stage runs `npm ci --omit=dev` and copies `dist/`.
+- One image for the whole application, built from the **root** `Dockerfile` with the repository root as context (`docker build .`). There is no `backend/Dockerfile` and no `frontend/Dockerfile` — do not add one.
+- Multi-stage on a `node:22-alpine` base: a frontend stage runs `npm ci` and `npm run build` in `frontend/`; a backend stage does the same in `backend/`; the runtime stage runs `npm ci --omit=dev` for the backend, copies the backend `dist/` to `/app/dist` and the frontend `dist` to `/app/public`, and sets `STATIC_DIR=/app/public`.
+- The root `.dockerignore` is an allow-list. A new file the build needs (for example a seed file read at runtime) must be added to it and copied into the runtime stage explicitly.
 - Entrypoint: `node dist/main.js`, listening on **8000** — that is what the ALB target group and the ECS security groups expect, so `main.ts` must default `PORT` to 8000 rather than Nest's own 3000.
 - Run as a non-root user, and `dumb-init` (or `--init`) as PID 1 so SIGTERM reaches Node and `app.enableShutdownHooks()` can drain.
 - `GET /health` must return 200 — the ALB health check targets it.
-- Database migrations run as `npm run migration:run`, both in CI and as the one-off ECS task in `deploy.yml`. The runtime image must therefore ship the compiled migrations and the TypeORM CLI datasource.
+- Database migrations run as `npm run migration:run`, in CI, in compose's one-shot `migrate` service, and as a one-off task wherever the image is deployed. The runtime image must therefore ship the compiled migrations and the TypeORM CLI datasource.

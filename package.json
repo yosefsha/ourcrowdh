@@ -1,0 +1,25 @@
+{
+  "name": "ourcrowdh",
+  "version": "0.0.1",
+  "description": "Press Mentions Monitoring — wraps the backend and frontend packages",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup": "npm ci && npm ci --prefix backend && npm ci --prefix frontend",
+    "build": "npm run build --prefix frontend && npm run build --prefix backend",
+    "start": "npm run start:prod --prefix backend",
+    "dev": "concurrently --names backend,frontend --kill-others-on-fail \"npm run start:dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "lint": "npm run lint --prefix backend && npm run lint --prefix frontend",
+    "type-check": "npm run type-check --prefix backend && npm run type-check --prefix frontend",
+    "test": "npm run test --prefix backend && npm run test --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  },
+  "overrides": {
+    "shell-quote": "^1.12.0"
+  }
+}

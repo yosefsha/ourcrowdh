@@ -1,11 +1,9 @@
 name: CI
 
 # The gate that has to go red before a human is asked to read the diff:
-# lint, type-check, test and image build for both services.
-#
-# This is the NestJS variant of ci.yml, installed by
-# `scripts/create_remote_project.py --backend nestjs`. The frontend and images
-# jobs are identical to the Python variant; only the backend job differs.
+# lint, type-check and test for both packages, then the single application
+# image (root Dockerfile) built and smoke-tested through docker-compose.yml.
+
 on:
   pull_request:
     branches: [main]
@@ -73,7 +71,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          # Matches the `node:22-alpine` base in backend/Dockerfile.
+          # Matches the `node:22-alpine` base of the root Dockerfile.
           node-version: "22"
           cache: npm
           cache-dependency-path: backend/package-lock.json
@@ -175,8 +173,8 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          # Matches the `node:22-alpine` base of the app image, which builds
-          # the SPA and serves it from NestJS (there is no frontend/Dockerfile).
+          # Matches the `node:22-alpine` base of the root Dockerfile, whose
+          # first stage builds the SPA that NestJS serves.
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
@@ -216,11 +214,36 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v4
 
-      - name: Build the backend image
-        # Build context is backend/, matching docker-compose.yml. The image is
-        # built, not pushed: this stage only proves the Dockerfile still builds.
-        run: docker build --pull -t ${{ github.event.repository.name }}-backend:${{ github.sha }} backend
+      - name: Validate docker-compose.yml, including the ollama profile
+        # The ollama profile is not started here (the model pull is several
+        # GB); validating the file still catches a broken profile definition.
+        run: docker compose --profile ollama config --quiet
 
-      # No frontend image: the SPA is served by the NestJS app (docs/PLAN.md),
-      # so frontend/ has no Dockerfile. Issue #4 replaces the step above with a
-      # single root-context build that bundles the SPA into the app image.
+      - name: Build the application image
+        # One image from the repository root Dockerfile: SPA build -> backend
+        # build -> runtime. Built through compose so the smoke test below runs
+        # exactly this image; it is built, not pushed.
+        run: docker compose build --pull
+
+      - name: Start the stack (postgres -> migrate -> app)
+        # Proves the image migrates an empty database with its own
+        # `npm run migration:run` and boots. Ollama is absent on the runner on
+        # purpose: only a Run needs it, never app startup.
+        run: docker compose up --detach
+
+      - name: Smoke-test /health and the SPA
+        run: |
+          curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors \
+            http://localhost:8000/health
+          echo
+          # The SPA's index.html, served by NestJS from STATIC_DIR=/app/public.
+          curl --fail --silent --show-error --output index.html http://localhost:8000/
+          grep --quiet '<div id="root">' index.html
+
+      - name: Show container logs
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes

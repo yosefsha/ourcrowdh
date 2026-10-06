@@ -1,0 +1,27 @@
+# Allow-list: the build context is the repository root, which also holds
+# agent worktrees, local data and node_modules. Only what the Dockerfile
+# copies is sent to the daemon.
+*
+
+!backend/package.json
+!backend/package-lock.json
+!backend/tsconfig.json
+!backend/tsconfig.build.json
+!backend/nest-cli.json
+!backend/src
+
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/index.html
+!frontend/vite.config.ts
+!frontend/tsconfig.json
+!frontend/tsconfig.app.json
+!frontend/tsconfig.node.json
+!frontend/public
+!frontend/src
+
+# Tests are not part of the image.
+**/*.spec.ts
+**/*.test.ts
+**/*.test.tsx
+frontend/src/test

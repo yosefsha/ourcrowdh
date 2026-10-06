@@ -46,10 +46,18 @@ backend/                  # Language-specific — see the backend instructions
 frontend/
   package.json            # Must define: dev, build, type-check, lint, test
   package-lock.json       # CI runs `npm ci`, which fails without it
-  Dockerfile              # node:22-alpine base
   src/                    # See the frontend section below
-docker-compose.yml        # Local Postgres + Redis, same images as CI
+package.json              # Root wrapper: setup, build, start, dev, lint, type-check, test fan out to both packages
+package-lock.json
+Dockerfile                # The ONE image: frontend build → backend build → runtime (node:22-alpine)
+.dockerignore             # Allow-list — the build context is the repository root
+docker-compose.yml        # postgres → migrate (one-shot) → app on :8000; `ollama` profile for a containerised Ollama
 ```
+
+There are no per-package Dockerfiles. The backend serves the built SPA, so one
+image built from the repository root carries both, and the CI images job
+builds and smoke-tests that image through `docker-compose.yml`. There is no
+Redis in this project — not in compose, not in CI, not in the app.
 
 Exactly one backend instructions doc is present in a generated project —
 `docs/backend-python-instructions.md` or `docs/backend-nestjs-instructions.md`,

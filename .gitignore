@@ -3,3 +3,9 @@ __pycache__/
 .DS_Store
 .venv/
 cdk.out/
+
+# Agent worktrees
+.claude/worktrees/
+
+# Root package (concurrently for `npm run dev`)
+node_modules/
