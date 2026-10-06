@@ -29,6 +29,7 @@
     "class-validator": "^0.15.1",
     "joi": "^18.2.9",
     "nest-commander": "^3.21.0",
+    "ollama": "^0.6.4",
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",

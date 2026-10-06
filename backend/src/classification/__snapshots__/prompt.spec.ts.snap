@@ -1,0 +1,250 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`classification prompt matches the committed snapshot — review any diff here as a prompt change 1`] = `
+{
+  "examples": [
+    {
+      "company": {
+        "disambiguator": "legal AI research company (harvey.ai)",
+        "formerNames": [],
+        "name": "Harvey",
+      },
+      "outlet": "Reuters",
+      "response": {
+        "confidence": 0.98,
+        "rationale": "Harvey here is the storm, not the legal AI company — a name collision.",
+        "relevant": false,
+        "sentiment": null,
+      },
+      "title": "Hurricane Harvey weakens to a tropical storm after pounding the Texas coast",
+    },
+    {
+      "company": {
+        "disambiguator": "legal AI research company (harvey.ai)",
+        "formerNames": [],
+        "name": "Harvey",
+      },
+      "outlet": "TechCrunch",
+      "response": {
+        "confidence": 0.9,
+        "rationale": "Harvey is one of the named companies, and the funding news is positive for it.",
+        "relevant": true,
+        "sentiment": "positive",
+      },
+      "title": "Harvey, Hebbia and Ironclad all raise fresh funding as legal AI spending accelerates",
+    },
+    {
+      "company": {
+        "disambiguator": "cloud security startup",
+        "formerNames": [],
+        "name": "Wiz",
+      },
+      "outlet": "Bloomberg",
+      "response": {
+        "confidence": 0.95,
+        "rationale": "A large funding round is positive news for Wiz.",
+        "relevant": true,
+        "sentiment": "positive",
+      },
+      "title": "Wiz raises $1B Series E at a $12B valuation",
+    },
+    {
+      "company": {
+        "disambiguator": "one-click checkout startup",
+        "formerNames": [],
+        "name": "Fast",
+      },
+      "outlet": "The Information",
+      "response": {
+        "confidence": 0.97,
+        "rationale": "Shutting down after burning through its funding is clearly negative for the company.",
+        "relevant": true,
+        "sentiment": "negative",
+      },
+      "title": "Fast shuts down after burning through $100M in 18 months",
+    },
+    {
+      "company": {
+        "disambiguator": "productivity software company",
+        "formerNames": [],
+        "name": "Notion",
+      },
+      "outlet": "Lifehacker",
+      "response": {
+        "confidence": 0.8,
+        "rationale": "A listicle mention with no good or bad news for Notion specifically.",
+        "relevant": true,
+        "sentiment": "neutral",
+      },
+      "title": "15 productivity apps worth trying in 2025, from Notion to Todoist",
+    },
+    {
+      "company": {
+        "disambiguator": "wearable exoskeleton maker",
+        "formerNames": [
+          "ReWalk",
+        ],
+        "name": "Lifeward",
+      },
+      "outlet": "MedCity News",
+      "response": {
+        "confidence": 0.92,
+        "rationale": "ReWalk is a Former Name of Lifeward, and winning regulatory clearance is positive.",
+        "relevant": true,
+        "sentiment": "positive",
+      },
+      "title": "ReWalk Robotics wins expanded FDA clearance for its exoskeleton",
+    },
+  ],
+  "messages": [
+    {
+      "content": "You classify one news headline as a press mention of exactly one company: the "Tracked Company" described in the user message. You are given that company's current name, any Former Names it used to be known by, and a Disambiguator — a non-name detail that tells it apart from anything else that happens to share its name (a storm, a person, an unrelated company, a common word).
+
+Decide two things, in order:
+
+1. RELEVANT — is this headline genuinely about the Tracked Company, under its current name or a Former Name, and not a name collision with something else that shares the name? A headline that names several companies is still relevant to the Tracked Company if the Tracked Company is one of the companies the headline is actually about.
+
+2. SENTIMENT — only when relevant is true: the tone of the headline toward the Tracked Company specifically, never the tone of the article as a whole and never the tone toward a different company the same headline names.
+   - "positive": funding rounds, new products or launches, partnerships, acquisitions of others, awards, strong results.
+   - "negative": layoffs, lawsuits, breaches, outages, shutdowns, down-rounds, executive departures under a cloud.
+   - "neutral": the company is merely named — a listicle, a market roundup, a factual mention that is neither good nor bad news for it.
+
+When relevant is false, sentiment must be null — an irrelevant headline has no Sentiment toward a company it is not about.
+
+Respond with ONLY the JSON object the schema requires: no prose, no markdown, no explanation outside the "rationale" field.",
+      "role": "system",
+    },
+    {
+      "content": "Company: Harvey
+Former names: (none)
+Disambiguator: legal AI research company (harvey.ai)
+Headline: "Hurricane Harvey weakens to a tropical storm after pounding the Texas coast"
+Outlet: Reuters",
+      "role": "user",
+    },
+    {
+      "content": "{"relevant":false,"sentiment":null,"confidence":0.98,"rationale":"Harvey here is the storm, not the legal AI company — a name collision."}",
+      "role": "assistant",
+    },
+    {
+      "content": "Company: Harvey
+Former names: (none)
+Disambiguator: legal AI research company (harvey.ai)
+Headline: "Harvey, Hebbia and Ironclad all raise fresh funding as legal AI spending accelerates"
+Outlet: TechCrunch",
+      "role": "user",
+    },
+    {
+      "content": "{"relevant":true,"sentiment":"positive","confidence":0.9,"rationale":"Harvey is one of the named companies, and the funding news is positive for it."}",
+      "role": "assistant",
+    },
+    {
+      "content": "Company: Wiz
+Former names: (none)
+Disambiguator: cloud security startup
+Headline: "Wiz raises $1B Series E at a $12B valuation"
+Outlet: Bloomberg",
+      "role": "user",
+    },
+    {
+      "content": "{"relevant":true,"sentiment":"positive","confidence":0.95,"rationale":"A large funding round is positive news for Wiz."}",
+      "role": "assistant",
+    },
+    {
+      "content": "Company: Fast
+Former names: (none)
+Disambiguator: one-click checkout startup
+Headline: "Fast shuts down after burning through $100M in 18 months"
+Outlet: The Information",
+      "role": "user",
+    },
+    {
+      "content": "{"relevant":true,"sentiment":"negative","confidence":0.97,"rationale":"Shutting down after burning through its funding is clearly negative for the company."}",
+      "role": "assistant",
+    },
+    {
+      "content": "Company: Notion
+Former names: (none)
+Disambiguator: productivity software company
+Headline: "15 productivity apps worth trying in 2025, from Notion to Todoist"
+Outlet: Lifehacker",
+      "role": "user",
+    },
+    {
+      "content": "{"relevant":true,"sentiment":"neutral","confidence":0.8,"rationale":"A listicle mention with no good or bad news for Notion specifically."}",
+      "role": "assistant",
+    },
+    {
+      "content": "Company: Lifeward
+Former names: ReWalk
+Disambiguator: wearable exoskeleton maker
+Headline: "ReWalk Robotics wins expanded FDA clearance for its exoskeleton"
+Outlet: MedCity News",
+      "role": "user",
+    },
+    {
+      "content": "{"relevant":true,"sentiment":"positive","confidence":0.92,"rationale":"ReWalk is a Former Name of Lifeward, and winning regulatory clearance is positive."}",
+      "role": "assistant",
+    },
+    {
+      "content": "Company: Harvey
+Former names: (none)
+Disambiguator: legal AI research company (harvey.ai)
+Headline: "Harvey raises $100M Series D to expand its legal AI product"
+Outlet: TechCrunch",
+      "role": "user",
+    },
+  ],
+  "schema": {
+    "additionalProperties": false,
+    "properties": {
+      "confidence": {
+        "maximum": 1,
+        "minimum": 0,
+        "type": "number",
+      },
+      "rationale": {
+        "maxLength": 200,
+        "type": "string",
+      },
+      "relevant": {
+        "type": "boolean",
+      },
+      "sentiment": {
+        "enum": [
+          "positive",
+          "negative",
+          "neutral",
+          null,
+        ],
+        "type": [
+          "string",
+          "null",
+        ],
+      },
+    },
+    "required": [
+      "relevant",
+      "sentiment",
+      "confidence",
+      "rationale",
+    ],
+    "type": "object",
+  },
+  "system": "You classify one news headline as a press mention of exactly one company: the "Tracked Company" described in the user message. You are given that company's current name, any Former Names it used to be known by, and a Disambiguator — a non-name detail that tells it apart from anything else that happens to share its name (a storm, a person, an unrelated company, a common word).
+
+Decide two things, in order:
+
+1. RELEVANT — is this headline genuinely about the Tracked Company, under its current name or a Former Name, and not a name collision with something else that shares the name? A headline that names several companies is still relevant to the Tracked Company if the Tracked Company is one of the companies the headline is actually about.
+
+2. SENTIMENT — only when relevant is true: the tone of the headline toward the Tracked Company specifically, never the tone of the article as a whole and never the tone toward a different company the same headline names.
+   - "positive": funding rounds, new products or launches, partnerships, acquisitions of others, awards, strong results.
+   - "negative": layoffs, lawsuits, breaches, outages, shutdowns, down-rounds, executive departures under a cloud.
+   - "neutral": the company is merely named — a listicle, a market roundup, a factual mention that is neither good nor bad news for it.
+
+When relevant is false, sentiment must be null — an irrelevant headline has no Sentiment toward a company it is not about.
+
+Respond with ONLY the JSON object the schema requires: no prose, no markdown, no explanation outside the "rationale" field.",
+  "version": "v1",
+}
+`;
