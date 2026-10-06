@@ -60,6 +60,22 @@ describe('parseGoogleNewsRss', () => {
     expect(articles[0]?.outlet).toBe('Solo Outlet');
   });
 
+  it('keeps a numeric-looking title or outlet as a string rather than coercing it', () => {
+    const xml =
+      '<rss><channel><item>' +
+      '<title>007 - 1.50</title>' +
+      '<link>https://example.com/numeric</link>' +
+      '<pubDate>Wed, 23 Sep 2026 07:00:00 GMT</pubDate>' +
+      '<source url="https://example.com">1.50</source>' +
+      '</item></channel></rss>';
+
+    const articles = parseGoogleNewsRss(xml);
+
+    expect(articles).toHaveLength(1);
+    expect(articles[0]?.title).toBe('007');
+    expect(articles[0]?.outlet).toBe('1.50');
+  });
+
   it('returns an empty list for a feed with no items', () => {
     const xml = '<rss><channel></channel></rss>';
 

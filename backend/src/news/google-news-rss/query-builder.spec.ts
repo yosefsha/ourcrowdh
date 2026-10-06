@@ -22,7 +22,9 @@ describe('buildGoogleNewsQuery', () => {
   it('quotes a plain company name and appends the date window operators', () => {
     const query = buildGoogleNewsQuery(company(), window);
 
-    expect(query).toBe('"Acme Corp" after:2026-01-01 before:2026-01-10');
+    // `before:` is exclusive and day-granular, so the day after `window.to`
+    // is queried to include articles published on `window.to`'s own day.
+    expect(query).toBe('"Acme Corp" after:2026-01-01 before:2026-01-11');
   });
 
   it('ORs the quoted name with quoted former names', () => {
@@ -71,16 +73,32 @@ describe('buildGoogleNewsQuery', () => {
   it('omits the context term entirely when there is no disambiguator or override', () => {
     const query = buildGoogleNewsQuery(company({ name: 'Acme Corp' }), window);
 
-    expect(query).toBe('"Acme Corp" after:2026-01-01 before:2026-01-10');
+    expect(query).toBe('"Acme Corp" after:2026-01-01 before:2026-01-11');
   });
 
-  it('derives after:/before: from the date window', () => {
+  it('derives after: from the date window and before: from the day after window.to', () => {
     const query = buildGoogleNewsQuery(company(), {
       from: new Date('2025-03-05T12:00:00Z'),
       to: new Date('2025-06-05T23:59:59Z'),
     });
 
     expect(query).toContain('after:2025-03-05');
-    expect(query).toContain('before:2025-06-05');
+    expect(query).toContain('before:2025-06-06');
+  });
+
+  it('strips an embedded double quote from a name so it cannot break the query syntax', () => {
+    const query = buildGoogleNewsQuery(company({ name: 'Acme "The Best" Corp' }), window);
+
+    expect(query).toContain('"Acme The Best Corp"');
+    expect(query).not.toMatch(/"Acme "The Best" Corp"/);
+  });
+
+  it('strips an embedded double quote from a disambiguator', () => {
+    const query = buildGoogleNewsQuery(
+      company({ name: 'Lambda', disambiguator: 'lambda.ai "formerly Lambda Labs"' }),
+      window,
+    );
+
+    expect(query).toContain('"lambda.ai formerly Lambda Labs"');
   });
 });

@@ -15,7 +15,14 @@ interface RawRssItem {
   readonly source?: unknown;
 }
 
-const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+// `parseTagValue: false` keeps every tag as a string — otherwise a title or
+// outlet that looks numeric (e.g. "007", "1.50") is coerced to a number and
+// silently corrupted when re-stringified.
+const parser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '@_',
+  parseTagValue: false,
+});
 
 /**
  * Parses a Google News RSS search response into `FetchedArticle[]`

@@ -74,6 +74,30 @@ describe('RssHttpClient', () => {
     ).rejects.toBeInstanceOf(NewsSourceError);
   });
 
+  it('wraps an aborted (timed-out) request as NewsSourceError without leaking it', async () => {
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new DOMException('The operation was aborted.', 'AbortError'));
+    const client = new RssHttpClient(0);
+
+    await expect(
+      client.fetchRssFeed('https://news.google.com/rss/search?q=x', 'x'),
+    ).rejects.toBeInstanceOf(NewsSourceError);
+  });
+
+  it('passes an AbortSignal with a timeout on every request, so a stalled connection cannot hang the Run', async () => {
+    const fetchMock = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('ok', { status: 200 }));
+    const client = new RssHttpClient(0);
+
+    await client.fetchRssFeed('https://news.google.com/rss/search?q=x', 'x');
+
+    const call = fetchMock.mock.calls[0];
+    const options = call?.[1] as { signal?: unknown } | undefined;
+    expect(options?.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it('does not retry a non-retryable 4xx status', async () => {
     const fetchMock = jest
       .spyOn(globalThis, 'fetch')
@@ -104,5 +128,28 @@ describe('RssHttpClient', () => {
 
     await jest.advanceTimersByTimeAsync(600);
     expect(resolved).toBe(true);
+  });
+
+  it('serialises concurrent calls so the politeness delay is never bypassed', async () => {
+    jest.useFakeTimers();
+    const fetchMock = jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.resolve(new Response('ok', { status: 200 })));
+    const client = new RssHttpClient(1000);
+
+    // Two calls fired without awaiting the first, as `Promise.all` over several companies would.
+    const first = client.fetchRssFeed('https://news.google.com/rss/search?q=a', 'a');
+    const second = client.fetchRssFeed('https://news.google.com/rss/search?q=b', 'b');
+
+    await jest.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await Promise.all([first, second]);
   });
 });
