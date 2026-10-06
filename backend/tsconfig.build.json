@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // The base config sets `rootDir: "."` so `tsc` can type-check `src/` and
+    // `test/` together without an ambiguous common source directory. The
+    // production build only ever compiles `src/`, so it narrows `rootDir`
+    // back — otherwise the output would nest under `dist/src/` instead of
+    // `dist/`, which the Dockerfile and `migration:run` both assume.
+    "rootDir": "./src"
+  },
+  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+}
