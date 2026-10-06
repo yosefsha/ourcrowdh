@@ -14,6 +14,7 @@ import { NewsSource, NEWS_SOURCE } from '../news/news-source.js';
 import { PostgresRunRepository } from './repositories/postgres-run.repository.js';
 import { RunRepository, RUN_REPOSITORY } from './run.repository.js';
 import { RunService } from './run.service.js';
+import { unboundPortStandIn } from './unbound-port-stand-in.js';
 
 /**
  * Providers shared between `RunsModule` (the HTTP-facing module `AppModule`
@@ -31,32 +32,37 @@ export const runRepositoryProvider: Provider = {
 
 export const runServiceProvider: Provider = {
   provide: RunService,
+  // `COMPANY_REPOSITORY`, `NEWS_SOURCE`, `MENTION_CLASSIFIER` and `NOTIFIER`
+  // are injected as *optional* and backed by `unboundPortStandIn` when
+  // absent — see that file's doc comment for why: those four ports are
+  // bound by other, separately developed feature issues that may not have
+  // landed on `main` yet, and this module must still let the app boot.
   useFactory: (
-    companyRepository: CompanyRepository,
-    newsSource: NewsSource,
-    classifier: MentionClassifier,
+    companyRepository: CompanyRepository | undefined,
+    newsSource: NewsSource | undefined,
+    classifier: MentionClassifier | undefined,
     mentionWriter: MentionWriter,
     runRepository: RunRepository,
-    notifier: Notifier,
+    notifier: Notifier | undefined,
     config: ConfigService<AppConfig, true>,
   ): RunService =>
     new RunService(
-      companyRepository,
-      newsSource,
-      classifier,
+      companyRepository ?? unboundPortStandIn<CompanyRepository>('COMPANY_REPOSITORY'),
+      newsSource ?? unboundPortStandIn<NewsSource>('NEWS_SOURCE'),
+      classifier ?? unboundPortStandIn<MentionClassifier>('MENTION_CLASSIFIER'),
       mentionWriter,
       runRepository,
-      notifier,
+      notifier ?? unboundPortStandIn<Notifier>('NOTIFIER'),
       config.get('backfillDays', { infer: true }),
       config.get('alertWindowHours', { infer: true }),
     ),
   inject: [
-    COMPANY_REPOSITORY,
-    NEWS_SOURCE,
-    MENTION_CLASSIFIER,
+    { token: COMPANY_REPOSITORY, optional: true },
+    { token: NEWS_SOURCE, optional: true },
+    { token: MENTION_CLASSIFIER, optional: true },
     MENTION_WRITER,
     RUN_REPOSITORY,
-    NOTIFIER,
+    { token: NOTIFIER, optional: true },
     ConfigService,
   ],
 };
