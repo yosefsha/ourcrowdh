@@ -18,7 +18,13 @@ export interface CompanyRepository {
    * notice.
    */
   upsertAll(entries: readonly SeedEntry[]): Promise<void>;
-  /** Ordered by `name`, ascending — every implementation must agree, since
-   * a caller (a future dashboard listing) will render this order as-is. */
+  /**
+   * Ordered by `name`, ascending, by plain code-unit/byte comparison — the
+   * same order `"ASC" COLLATE "C"` gives in Postgres, not a locale-aware
+   * collation (which sorts case-insensitively and would disagree for mixed
+   * case, e.g. "Zeta" vs "alpha"). Pinned exactly, not just "by name",
+   * because a caller (a future dashboard listing) renders this order as-is
+   * and must see the same thing regardless of which implementation answered.
+   */
   findAll(): Promise<readonly TrackedCompany[]>;
 }

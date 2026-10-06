@@ -123,6 +123,43 @@ describe('Company list seeding (e2e)', () => {
     expect(ludeo.rows[0].former_names).toEqual(['Edge']);
   }, 30_000);
 
+  it('findAll orders by name under "C" collation, not a locale-aware one', async () => {
+    // Chosen so a locale-aware, case-insensitive collation and plain "C"
+    // byte order disagree: in "C", digits < uppercase < lowercase, so
+    // "Beta2 LLC" (B=66) < "Zeta Corp" (Z=90) < "alpha Inc" (a=97) — the
+    // opposite of the case-insensitive dictionary order a reviewer glancing
+    // at the names would expect.
+    const rows = [
+      { slug: 'zeta-corp-collation-test', name: 'Zeta Corp' },
+      { slug: 'alpha-inc-collation-test', name: 'alpha Inc' },
+      { slug: 'beta2-llc-collation-test', name: 'Beta2 LLC' },
+    ];
+    try {
+      for (const row of rows) {
+        await client.query(
+          "INSERT INTO companies (slug, name, former_names, disambiguator) VALUES ($1, $2, '{}', NULL)",
+          [row.slug, row.name],
+        );
+      }
+
+      // The exact expression `postgres-company.repository.ts` uses —
+      // proving the port's documented order against the real database, not
+      // just against the in-memory fake.
+      const result = await client.query<CompanyRow>(
+        `SELECT id, name FROM companies
+         WHERE slug IN ($1, $2, $3)
+         ORDER BY name COLLATE "C" ASC`,
+        rows.map((row) => row.slug),
+      );
+
+      expect(result.rows.map((row) => row.name)).toEqual(['Beta2 LLC', 'Zeta Corp', 'alpha Inc']);
+    } finally {
+      await client.query('DELETE FROM companies WHERE slug = ANY($1)', [
+        rows.map((row) => row.slug),
+      ]);
+    }
+  });
+
   it('fails loudly (non-zero exit) and writes nothing when COMPANIES_FILE does not exist', async () => {
     const missingPath = join(dir, 'does-not-exist.txt');
 

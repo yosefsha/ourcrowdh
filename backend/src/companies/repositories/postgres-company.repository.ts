@@ -51,7 +51,17 @@ export class PostgresCompanyRepository implements CompanyRepository {
   }
 
   async findAll(): Promise<readonly TrackedCompany[]> {
-    const rows = await this.repository.find({ order: { name: 'ASC' } });
+    // Plain `order: { name: 'ASC' }` sorts under the database's default
+    // collation, which disagrees with `InMemoryCompanyRepository`'s plain
+    // code-unit comparison for mixed case, punctuation and digits (e.g. a
+    // locale-aware collation sorts case-insensitively; "C" does not).
+    // `COLLATE "C"` pins Postgres to the same byte/code-point order the
+    // fake uses, so every implementation of this port agrees — the ordering
+    // the interface promises callers.
+    const rows = await this.repository
+      .createQueryBuilder('company')
+      .orderBy('company.name COLLATE "C"', 'ASC')
+      .getMany();
     return rows.map(toTrackedCompany);
   }
 }
