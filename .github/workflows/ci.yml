@@ -240,7 +240,6 @@ jobs:
         # built, not pushed: this stage only proves the Dockerfile still builds.
         run: docker build --pull -t ${{ github.event.repository.name }}-backend:${{ github.sha }} backend
 
-      - name: Build the frontend image
-        # The frontend Dockerfile runs `npm run build` inside the builder stage,
-        # so a type error fails this job as well as the frontend job.
-        run: docker build --pull -t ${{ github.event.repository.name }}-frontend:${{ github.sha }} frontend
+      # No frontend image: the SPA is served by the NestJS app (docs/PLAN.md),
+      # so frontend/ has no Dockerfile. Issue #4 replaces the step above with a
+      # single root-context build that bundles the SPA into the app image.
