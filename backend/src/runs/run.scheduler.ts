@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { CronJob } from 'cron';
+import { RunAlreadyInProgressError } from './run.repository.js';
 import { RunService } from './run.service.js';
 
 /**
@@ -40,6 +41,13 @@ export class RunScheduler implements OnModuleInit {
       cronTime: this.runCron,
       onTick: () => {
         this.runService.execute('schedule').catch((error: unknown) => {
+          if (error instanceof RunAlreadyInProgressError) {
+            // Expected fail-fast path — a manual or CLI Run (or a previous
+            // tick that overran) already holds the lock. A warning without
+            // a stack trace says so without looking like an application bug.
+            this.logger.warn(`Scheduled Run skipped: ${error.message}`);
+            return;
+          }
           this.logger.error(
             'Scheduled Run failed',
             error instanceof Error ? error.stack : String(error),

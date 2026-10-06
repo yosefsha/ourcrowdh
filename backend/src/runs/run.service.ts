@@ -74,10 +74,27 @@ export class RunService {
    */
   async startInBackground(trigger: RunTrigger): Promise<RunRecord> {
     return new Promise<RunRecord>((resolve, reject) => {
+      let started = false;
       this.runRepository
-        .withLock(() => this.runPipeline(trigger, resolve))
+        .withLock(() =>
+          this.runPipeline(trigger, (run) => {
+            started = true;
+            resolve(run);
+          }),
+        )
         .catch((error: unknown) => {
-          reject(error instanceof Error ? error : new Error(String(error)));
+          const normalized = error instanceof Error ? error : new Error(String(error));
+          if (started) {
+            // `resolve` already fired (the 202 response is long gone), so
+            // this `reject` is a no-op — without logging here, a failure
+            // this late (e.g. `runRepository.fail()` itself throwing
+            // mid-pipeline) would vanish with no trace anywhere.
+            this.logger.error(
+              `Background Run failed after it had already started: ${normalized.message}`,
+            );
+            return;
+          }
+          reject(normalized);
         });
     });
   }
@@ -104,7 +121,21 @@ export class RunService {
       return { ...run, ...counts, status: 'succeeded', finishedAt: new Date(), error: null };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await this.runRepository.fail(run.id, message, counts);
+      try {
+        await this.runRepository.fail(run.id, message, counts);
+      } catch (failError) {
+        const failMessage = failError instanceof Error ? failError.message : String(failError);
+        // Recording the failure itself failed (e.g. the DB connection that
+        // dropped mid-Run is also what `fail()` needs) — the `runs` row is
+        // stuck at `status='running'` with no way to correct it from here.
+        // Logging loudly is the only thing left to do; re-throw so the
+        // caller (`execute`/`startInBackground`) observes it too, instead
+        // of this silently resolving as if the Run had been recorded.
+        this.logger.error(
+          `Run ${run.id} failed with "${message}", and recording that failure itself failed: ${failMessage}`,
+        );
+        throw failError;
+      }
       return { ...run, ...counts, status: 'failed', finishedAt: new Date(), error: message };
     }
   }

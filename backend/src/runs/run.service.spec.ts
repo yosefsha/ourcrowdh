@@ -10,6 +10,7 @@ import { InMemoryCompanyRepository } from '../companies/in-memory-company.reposi
 import { InMemoryMentionWriter } from '../mentions/in-memory-mention-writer.js';
 import { DateWindow, FetchedArticle, NewsSource, NewsSourceError } from '../news/news-source.js';
 import { InMemoryRunRepository } from './in-memory-run.repository.js';
+import { RunCounts } from './run.repository.js';
 import { RunService } from './run.service.js';
 
 const BACKFILL_DAYS = 10;
@@ -110,6 +111,15 @@ class ThrowingMarkAlertedMentionWriter extends InMemoryMentionWriter {
 class ThrowingNotifier implements Notifier {
   notify(): Promise<void> {
     return Promise.reject(new Error('smtp unreachable'));
+  }
+}
+
+/** `fail()` itself throws — models the DB connection dropping mid-Run,
+ * right when the pipeline tries to record its own failure. */
+class FailingOnFailRunRepository extends InMemoryRunRepository {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature must match the overridden method
+  override fail(_id: string, _error: string, _counts: RunCounts): Promise<void> {
+    return Promise.reject(new Error('db connection dropped'));
   }
 }
 
@@ -259,6 +269,27 @@ describe('RunService', () => {
     expect(run.mentionsDiscovered).toBe(0);
     expect(await h.mentionWriter.findPending()).toHaveLength(0);
   });
+
+  it(
+    'execute: if recording the failure itself fails (e.g. the DB dropped mid-Run), ' +
+      'the rejection propagates instead of being swallowed (review finding)',
+    async () => {
+      const companyRepository = new InMemoryCompanyRepository();
+      await seedCompanies(companyRepository, [companySpec()]);
+      const service = new RunService(
+        companyRepository,
+        noArticles,
+        new InMemoryMentionClassifier(new Map(), new ClassifierUnavailableError('unreachable')),
+        new InMemoryMentionWriter(),
+        new FailingOnFailRunRepository(),
+        new InMemoryNotifier(),
+        BACKFILL_DAYS,
+        ALERT_WINDOW_HOURS,
+      );
+
+      await expect(service.execute('cli')).rejects.toThrow('db connection dropped');
+    },
+  );
 
   it("one company's NewsSourceError is logged and counted, the Run continues", async () => {
     const fetched = article({ publishedAt: new Date() });
@@ -512,6 +543,38 @@ describe('RunService', () => {
         'A Run already holds the lock',
       );
     });
+
+    it(
+      'a failure after the Run has already started does not reject the already-resolved ' +
+        'promise — it is logged instead of silently dropped (review finding)',
+      async () => {
+        const companyRepository = new InMemoryCompanyRepository();
+        await seedCompanies(companyRepository, [companySpec()]);
+        const runRepository = new FailingOnFailRunRepository();
+        const service = new RunService(
+          companyRepository,
+          noArticles,
+          new InMemoryMentionClassifier(new Map(), new ClassifierUnavailableError('unreachable')),
+          new InMemoryMentionWriter(),
+          runRepository,
+          new InMemoryNotifier(),
+          BACKFILL_DAYS,
+          ALERT_WINDOW_HOURS,
+        );
+
+        const started = await service.startInBackground('manual');
+
+        expect(started.status).toBe('running');
+        // The background pipeline fails (classifier unavailable), then
+        // *recording* that failure also fails (`FailingOnFailRunRepository`).
+        // Before the fix, that double failure landed in `startInBackground`'s
+        // `.catch` and called `reject()` on an already-resolved promise — a
+        // silent no-op. Awaiting a tick here proves it no longer escapes as
+        // an unhandled rejection; `run.service.ts`'s `startInBackground` logs
+        // it instead.
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      },
+    );
   });
 
   describe('list', () => {
