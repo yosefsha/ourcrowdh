@@ -44,9 +44,10 @@ WORKDIR /app
 RUN apk add --no-cache dumb-init
 
 # Production dependencies only. `typeorm` is a runtime dependency, so its CLI
-# is available here for `npm run migration:run`.
+# is available here for `npm run migration:run`. No runtime dependency needs
+# an install script (pg is pure JS), so lifecycle scripts are not run.
 COPY backend/package.json backend/package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 # `dist/` carries the compiled migrations and the TypeORM CLI data source
 # (dist/database/data-source.js) alongside the app — the backend is native ESM

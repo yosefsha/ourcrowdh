@@ -61,8 +61,9 @@ services:
       SCHEDULER_ENABLED: "true"
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+    # Loopback only: the app has no authentication and is a local tool.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     # Makes host.docker.internal resolve on Linux too (Docker Desktop provides
     # it already), so the default OLLAMA_URL reaches the host's Ollama.
     extra_hosts:
