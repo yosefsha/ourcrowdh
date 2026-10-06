@@ -99,6 +99,7 @@ cli run | POST /api/runs | cron
   5. newMentions = relevant Mentions never alerted (alerted_run_id IS NULL) and published within ALERT_WINDOW_HOURS
      notifier.notify(alert)  — always, an empty Alert prints "no new mentions"
      mentionWriter.markAlerted(runId, ids) — only after notify succeeds, so a failed Alert is retried next Run
+     delivery is at-least-once: if notify succeeds but markAlerted fails, the Run fails and the next Run repeats those Mentions
      (keyed on "never alerted", not "first seen this Run": a Mention whose classification failed or was
       interrupted is alerted by whichever later Run classifies it, if it is still within the window)
   6. finish Run with counts; release lock
@@ -121,7 +122,7 @@ mentions    id uuid pk · article_id fk · company_id fk · unique(article_id, c
             CHECK classified  ⇔ relevant IS NOT NULL
             CHECK COALESCE(relevant, false) = (sentiment IS NOT NULL)   -- a NULL CHECK result passes in Postgres, hence COALESCE
             index (company_id, published_at via article) for status/quarter queries
-            partial index on (alerted_run_id) WHERE relevant AND alerted_run_id IS NULL
+            partial index on (article_id) WHERE relevant AND alerted_run_id IS NULL   -- the unalerted set, joined to articles for the window
 ```
 
 ## Ports

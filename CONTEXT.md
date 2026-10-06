@@ -70,6 +70,6 @@ _Avoid_: Digest, notification, report
 
 - An **Article** can concern several **Tracked Companies**; each pairing is exactly one **Mention**.
 - Each **Mention** is first discovered by exactly one **Run**.
-- Each **Run** sends exactly one **Alert**, possibly empty; a **Mention** appears in at most one Alert.
+- Each **Run** sends exactly one **Alert**, possibly empty, and a **Mention** is a **New Mention** in only one Run's Alert unless recording that Alert fails.
 
 How these are stored and move through a Run: `docs/PLAN.md#entities-and-flow`.
