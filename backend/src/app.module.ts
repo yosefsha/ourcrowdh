@@ -1,11 +1,19 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { AlertsModule } from './alerts/alerts.module.js';
+import { ClassificationModule } from './classification/classification.module.js';
+import { CompaniesModule } from './companies/companies.module.js';
 import configuration from './config/configuration.js';
 import { AppConfig } from './config/configuration.js';
 import { validationSchema } from './config/validation.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DatabaseModule } from './database/database.module.js';
+import { ExportModule } from './export/export.module.js';
 import { HealthModule } from './health/health.module.js';
+import { MentionsModule } from './mentions/mentions.module.js';
+import { NewsModule } from './news/news.module.js';
+import { RunsModule } from './runs/runs.module.js';
 
 // Routes the SPA catch-all must never swallow — they stay reachable by the
 // controllers registered elsewhere in this module.
@@ -35,6 +43,14 @@ const API_AND_HEALTH_ROUTES = ['/api/{*splat}', '/health', '/health/{*splat}'];
     }),
     DatabaseModule,
     HealthModule,
+    CompaniesModule,
+    NewsModule,
+    ClassificationModule,
+    AlertsModule,
+    MentionsModule,
+    RunsModule,
+    DashboardModule,
+    ExportModule,
   ],
 })
 export class AppModule {}
