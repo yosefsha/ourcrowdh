@@ -14,11 +14,43 @@ import {
 import { buildMessages, CLASSIFICATION_RESPONSE_SCHEMA } from '../prompt.js';
 import { RawClassificationResponseDto } from './raw-classification-response.dto.js';
 
+/**
+ * Every Ollama HTTP call — `assertReady()`'s `/api/tags` and `classify()`'s
+ * `/api/chat` — is bounded by this timeout. Without it, a stalled
+ * connection (model still loading, a GPU hang) would leave `classify()`
+ * unsettled forever: neither the retry nor `ClassificationFailedError`
+ * could ever fire, and a caller iterating Mentions would hang.
+ */
+const REQUEST_TIMEOUT_MS = 120_000;
+
+/** Longest excerpt of a raw model reply ever embedded in an error message, so an unbounded reply can't end up in logs. */
+const MAX_REPLY_EXCERPT_LENGTH = 200;
+
 /** Internal only: raised when the model's reply is not usable JSON for the schema. Never crosses `classify()`. */
 class SchemaViolationError extends Error {}
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function excerpt(text: string): string {
+  return text.length > MAX_REPLY_EXCERPT_LENGTH
+    ? `${text.slice(0, MAX_REPLY_EXCERPT_LENGTH)}…`
+    : text;
+}
+
+/**
+ * Wraps a `fetch` implementation so every request it makes aborts after
+ * `timeoutMs` rather than hanging indefinitely. The `ollama` client's
+ * non-streaming calls (`chat()`, `list()`) pass no `signal` of their own,
+ * so this is the only place such a timeout can be enforced.
+ */
+function withTimeout(fetchImpl: typeof fetch, timeoutMs: number): typeof fetch {
+  return (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ): ReturnType<typeof fetch> =>
+    fetchImpl(input, { ...init, signal: AbortSignal.timeout(timeoutMs) });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -60,7 +92,10 @@ export class OllamaMentionClassifier implements MentionClassifier {
   constructor(configService: ConfigService<AppConfig, true>, @Optional() fetchImpl?: typeof fetch) {
     this.url = configService.get('ollamaUrl', { infer: true });
     this.model = configService.get('ollamaModel', { infer: true });
-    this.client = new Ollama(fetchImpl ? { host: this.url, fetch: fetchImpl } : { host: this.url });
+    this.client = new Ollama({
+      host: this.url,
+      fetch: withTimeout(fetchImpl ?? fetch, REQUEST_TIMEOUT_MS),
+    });
   }
 
   async assertReady(): Promise<void> {
@@ -115,7 +150,7 @@ export class OllamaMentionClassifier implements MentionClassifier {
     try {
       parsed = JSON.parse(content);
     } catch {
-      throw new SchemaViolationError(`model reply was not valid JSON: ${content}`);
+      throw new SchemaViolationError(`model reply was not valid JSON: ${excerpt(content)}`);
     }
 
     const dto = plainToInstance(RawClassificationResponseDto, pickRawFields(parsed));

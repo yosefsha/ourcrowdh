@@ -49,13 +49,20 @@ function urlOf(input: string | URL | Request): string {
   return input instanceof URL ? input.toString() : input.url;
 }
 
+interface FetchCall {
+  readonly url: string;
+  readonly init?: RequestInit;
+}
+
 function stubbedFetch(options: {
   tags?: { models: ReadonlyArray<{ model: string; name?: string }> } | 'unreachable';
   chatContents?: readonly string[];
-}): { fetch: typeof fetch; chatCallCount: () => number } {
+}): { fetch: typeof fetch; chatCallCount: () => number; calls: readonly FetchCall[] } {
   let chatCalls = 0;
-  const fetchImpl = (input: string | URL | Request): Promise<Response> => {
+  const calls: FetchCall[] = [];
+  const fetchImpl = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = urlOf(input);
+    calls.push({ url, init });
     if (url.endsWith('/api/tags')) {
       if (options.tags === 'unreachable' || options.tags === undefined) {
         throw new TypeError('fetch failed: connection refused');
@@ -70,7 +77,7 @@ function stubbedFetch(options: {
     }
     throw new Error(`stubbedFetch: unexpected URL ${url}`);
   };
-  return { fetch: fetchImpl, chatCallCount: () => chatCalls };
+  return { fetch: fetchImpl, chatCallCount: () => chatCalls, calls };
 }
 
 describe('OllamaMentionClassifier', () => {
@@ -80,6 +87,18 @@ describe('OllamaMentionClassifier', () => {
       const classifier = new OllamaMentionClassifier(configService(), fetchImpl);
 
       await expect(classifier.assertReady()).resolves.toBeUndefined();
+    });
+
+    it('sends the /api/tags request with an abort signal too', async () => {
+      const { fetch: fetchImpl, calls } = stubbedFetch({
+        tags: { models: [{ model: OLLAMA_MODEL }] },
+      });
+      const classifier = new OllamaMentionClassifier(configService(), fetchImpl);
+
+      await classifier.assertReady();
+
+      const tagsCall = calls.find((call) => call.url.endsWith('/api/tags'));
+      expect(tagsCall?.init?.signal).toBeInstanceOf(AbortSignal);
     });
 
     it('throws ClassifierUnavailableError with the ollama serve remedy when unreachable', async () => {
@@ -130,6 +149,26 @@ describe('OllamaMentionClassifier', () => {
         rationale: 'Funding news is positive for the company.',
         model: OLLAMA_MODEL,
       });
+    });
+
+    it('sends every request with an abort signal, so a stalled Ollama connection cannot hang classify() forever', async () => {
+      const { fetch: fetchImpl, calls } = stubbedFetch({
+        chatContents: [
+          JSON.stringify({
+            relevant: true,
+            sentiment: 'neutral',
+            confidence: 0.6,
+            rationale: 'Plain mention.',
+          }),
+        ],
+      });
+      const classifier = new OllamaMentionClassifier(configService(), fetchImpl);
+
+      await classifier.classify({ company, title: 'Harvey named in a roundup', outlet: 'Reuters' });
+
+      const chatCall = calls.find((call) => call.url.endsWith('/api/chat'));
+      expect(chatCall?.init?.signal).toBeInstanceOf(AbortSignal);
+      expect(chatCall?.init?.signal?.aborted).toBe(false);
     });
 
     it('returns an irrelevant classification without a sentiment', async () => {
@@ -198,6 +237,16 @@ describe('OllamaMentionClassifier', () => {
         classifier.classify({ company, title: 'Harvey named in a roundup', outlet: 'Reuters' }),
       ).rejects.toBeInstanceOf(ClassificationFailedError);
       expect(chatCallCount()).toBe(2);
+    });
+
+    it('caps how much of an oversized, unparseable reply reaches the error message', async () => {
+      const oversizedReply = 'x'.repeat(5_000);
+      const { fetch: fetchImpl } = stubbedFetch({ chatContents: [oversizedReply, oversizedReply] });
+      const classifier = new OllamaMentionClassifier(configService(), fetchImpl);
+
+      await expect(
+        classifier.classify({ company, title: 'Harvey named in a roundup', outlet: 'Reuters' }),
+      ).rejects.toThrow(/^.{0,400}$/);
     });
 
     it('throws ClassificationFailedError when a relevant mention is returned without a sentiment', async () => {
